@@ -123,7 +123,8 @@ model Payment {
   amount          Float
   paymentMethod   String        // DUITKU/IDRX
   status          PaymentStatus @default(PENDING)
-  externalId      String?       // ID dari payment gateway
+  externalId      String?       // Duitku payment reference (e.g., D11808...)
+  merchantOrderId String?       // IDRX merchant order ID (e.g., timestamp-based)
   mintingTxHash   String?       // Transaction hash dari minting IDRX
   walletAddress   String?       // Wallet bendahara
   paidAt          DateTime?

@@ -193,17 +193,33 @@ export class IDRXClient {
    * Check transaction status by merchant order ID
    */
   async checkTransactionStatus(merchantOrderId: string): Promise<any> {
-    const history = await this.getTransactionHistory({
-      transactionType: "MINT",
-      page: 1,
-      take: 1,
-      merchantOrderId,
-    });
+    try {
+      const history = await this.getTransactionHistory({
+        transactionType: "MINT",
+        page: 1,
+        take: 10, // Increase to get more recent transactions
+        merchantOrderId,
+      });
 
-    if (history.records && history.records.length > 0) {
-      return history.records[0];
+      console.log(`🔍 Searching for merchantOrderId: ${merchantOrderId}`);
+      console.log(`📊 Found ${history.records?.length || 0} records`);
+
+      if (history.records && history.records.length > 0) {
+        const record = history.records[0];
+        console.log(`✅ Transaction found:`);
+        console.log(`   - Payment Status: ${record.paymentStatus}`);
+        console.log(`   - Mint Status: ${record.userMintStatus}`);
+        console.log(`   - TxHash: ${record.txHash || "N/A"}`);
+        return record;
+      }
+
+      console.log(
+        `⚠️  Transaction not found in IDRX API yet (may need time to sync)`
+      );
+      return null;
+    } catch (error: any) {
+      console.error(`❌ Error checking IDRX transaction:`, error.message);
+      return null;
     }
-
-    return null;
   }
 }

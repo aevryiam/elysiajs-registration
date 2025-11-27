@@ -106,7 +106,8 @@ export const transactionsRoutes = new Elysia({ prefix: "/transactions" })
             amount: body.amount, // Use original amount (no fees)
             paymentMethod: "IDRX",
             status: "PENDING",
-            externalId: idrxResponse.data.reference,
+            externalId: idrxResponse.data.reference, // Duitku reference
+            merchantOrderId: idrxResponse.data.merchantOrderId, // IDRX order ID
             expiredAt,
             walletAddress: ENV.BENDAHARA_WALLET,
           },
@@ -360,23 +361,50 @@ export const paymentCronJob = cron({
       const pendingPayments = await prisma.payment.findMany({
         where: {
           status: { in: ["PENDING", "PROCESSING"] },
-          externalId: { not: null },
+          merchantOrderId: { not: null }, // Use merchantOrderId for IDRX API
         },
       });
 
+      console.log(
+        `📋 Found ${pendingPayments.length} pending/processing payments`
+      );
+
       for (const payment of pendingPayments) {
         try {
-          // Check transaction status from IDRX
+          console.log(`\n🔄 Checking payment ${payment.id}`);
+          console.log(`   Merchant Order ID: ${payment.merchantOrderId}`);
+          console.log(`   Duitku Reference: ${payment.externalId}`);
+          console.log(`   Current Status: ${payment.status}`);
+          console.log(`   Created: ${payment.createdAt.toISOString()}`);
+
+          // Check transaction status from IDRX using merchantOrderId
           const transaction = await idrxClient.checkTransactionStatus(
-            payment.externalId!
+            payment.merchantOrderId!
           );
 
           if (!transaction) {
-            console.log(`Transaction not found for payment ${payment.id}`);
+            // Calculate time since creation
+            const minutesSinceCreation = Math.floor(
+              (Date.now() - payment.createdAt.getTime()) / 1000 / 60
+            );
+            console.log(`⏱️  Payment age: ${minutesSinceCreation} minutes`);
+
+            // Only log warning if payment is older than 15 minutes
+            if (minutesSinceCreation > 15) {
+              console.log(
+                `⚠️  Warning: Transaction not found in IDRX API after ${minutesSinceCreation} minutes`
+              );
+            } else {
+              console.log(`ℹ️  Transaction may still be syncing with IDRX API`);
+            }
             continue;
           }
 
           // Update payment status based on IDRX status
+          console.log(
+            `📊 IDRX Status: Payment=${transaction.paymentStatus}, Mint=${transaction.userMintStatus}`
+          );
+
           if (transaction.paymentStatus === "PAID") {
             // Check if IDRX has been minted
             if (transaction.userMintStatus === "MINTED" && transaction.txHash) {
@@ -396,21 +424,24 @@ export const paymentCronJob = cron({
                 data: { sudahBayar: true },
               });
 
-              console.log(
-                `Payment ${payment.id} completed and IDRX minted. TxHash: ${transaction.txHash}`
-              );
+              console.log(`✅ Payment ${payment.id} COMPLETED!`);
+              console.log(`   💎 IDRX Minted - TxHash: ${transaction.txHash}`);
+              console.log(`   🏆 Team payment status updated`);
             } else if (transaction.userMintStatus === "PROCESSING") {
               // Still processing
-              await prisma.payment.update({
-                where: { id: payment.id },
-                data: {
-                  status: "PROCESSING",
-                  paidAt: new Date(transaction.updatedAt),
-                },
-              });
+              if (payment.status !== "PROCESSING") {
+                await prisma.payment.update({
+                  where: { id: payment.id },
+                  data: {
+                    status: "PROCESSING",
+                    paidAt: new Date(transaction.updatedAt),
+                  },
+                });
+              }
               console.log(
-                `Payment ${payment.id} is being processed for minting`
+                `⏳ Payment ${payment.id} is being processed for minting`
               );
+              console.log(`   (This can take 5-15 minutes during peak hours)`);
             } else if (transaction.userMintStatus === "FAILED") {
               // Minting failed
               await prisma.payment.update({
@@ -419,7 +450,11 @@ export const paymentCronJob = cron({
                   status: "FAILED",
                 },
               });
-              console.log(`Payment ${payment.id} minting failed`);
+              console.log(`❌ Payment ${payment.id} minting FAILED`);
+            } else {
+              console.log(
+                `ℹ️  Payment ${payment.id} paid but mint status: ${transaction.userMintStatus}`
+              );
             }
           } else if (transaction.paymentStatus === "EXPIRED") {
             // Payment expired
@@ -427,7 +462,9 @@ export const paymentCronJob = cron({
               where: { id: payment.id },
               data: { status: "EXPIRED" },
             });
-            console.log(`Payment ${payment.id} expired`);
+            console.log(`⏰ Payment ${payment.id} EXPIRED`);
+          } else if (transaction.paymentStatus === "WAITING_FOR_PAYMENT") {
+            console.log(`⏳ Payment ${payment.id} still waiting for payment`);
           }
         } catch (error: any) {
           console.error(`Error checking payment ${payment.id}:`, error.message);
