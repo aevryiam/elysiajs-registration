@@ -5,10 +5,134 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
   output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum JenisLomba {
+  KOMPETITIF
+  NON_KOMPETITIF
+  WORKSHOP
+  SEMINAR
+}
+
+enum JenjangPendidikan {
+  SD
+  SMP
+  SMA
+  SMK
+  D3
+  S1
+  S2
+  S3
+  UMUM
+}
+
+enum StatusVerifikasi {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  EXPIRED
+}
+
+model Admin {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  nama      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("admins")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  password     String
+  nama         String
+  namaLengkap  String?
+  nomorTelepon String?
+  photo        String?  // URL/link to photo
+  role         UserRole @default(USER)
+  isFirstLogin Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  teams Team[]
+
+  @@map("users")
+}
+
+model Team {
+  id               String           @id @default(uuid())
+  namaTim          String
+  jenisLomba       JenisLomba
+  statusVerifikasi StatusVerifikasi @default(PENDING)
+  sudahBayar       Boolean          @default(false)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  // Relations
+  ketuaId       String
+  ketua         User           @relation(fields: [ketuaId], references: [id], onDelete: Cascade)
+  members       TeamMember[]
+  transactions  Payment[]
+
+  @@map("teams")
+}
+
+model TeamMember {
+  id                String             @id @default(uuid())
+  nama              String
+  email             String
+  nomorTelepon      String
+  tanggalLahir      DateTime
+  jenjangPendidikan JenjangPendidikan
+  asalInstansi      String
+  isKetua           Boolean            @default(false)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  // Relations
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@map("team_members")
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  teamId          String
+  amount          Float
+  paymentMethod   String        // DUITKU/IDRX
+  status          PaymentStatus @default(PENDING)
+  externalId      String?       // ID dari payment gateway
+  mintingTxHash   String?       // Transaction hash dari minting IDRX
+  walletAddress   String?       // Wallet bendahara
+  paidAt          DateTime?
+  expiredAt       DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
 }

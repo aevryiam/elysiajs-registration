@@ -7,11 +7,16 @@
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.0",
+    "@elysiajs/cron": "^1.4.1",
     "@elysiajs/jwt": "^1.4.0",
     "@elysiajs/openapi": "^1.4.11",
+    "@elysiajs/swagger": "^1.3.1",
+    "@prisma/adapter-pg": "^7.0.1",
     "@prisma/client": "^7.0.0",
     "argon2": "^0.44.0",
-    "elysia": "latest"
+    "dotenv": "^17.2.3",
+    "elysia": "latest",
+    "pg": "^8.16.3"
   },
   "devDependencies": {
     "bun-types": "latest",
