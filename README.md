@@ -1,4 +1,4 @@
-# Competition Registration Backend API
+# Competition Registration Backend APIp
 
 Backend API untuk sistem registrasi lomba dengan fitur team management dan payment gateway integration.
 
